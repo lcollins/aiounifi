@@ -68,18 +68,17 @@ class Connectivity:
 
         response, bytes_data = await self._request("post", url, json=auth)
 
-        if response.content_type == "application/json":
-            data: TypedApiResponse = orjson.loads(bytes_data)
-            if "meta" in data and data["meta"]["rc"] == "error":
-                LOGGER.error("Login failed '%s'", data)
-                raise ERRORS.get(data["meta"]["msg"], AiounifiException)
-
-            if (csrf_token := response.headers.get("x-csrf-token")) is not None:
-                self.headers["x-csrf-token"] = csrf_token
-
-        else:
+        if response.content_type != "application/json":
             LOGGER.debug("Login Failed not JSON: '%s'", bytes_data)
             raise RequestError("Login Failed: Host starting up")
+
+        data: TypedApiResponse = orjson.loads(bytes_data)
+        if data.get("meta", {}).get("rc") == "error":
+            LOGGER.error("Login failed '%s'", data)
+            raise ERRORS.get(data["meta"]["msg"], AiounifiException)
+
+        if (csrf_token := response.headers.get("x-csrf-token")) is not None:
+            self.headers["x-csrf-token"] = csrf_token
 
         self.can_retry_login = True
         LOGGER.debug("Logged in to UniFi %s", url)
